@@ -18,6 +18,7 @@ public:
 
     void clear_screen() override;
     void set_screen(PRender::FRECT screen_dst) override;
+    void reset_textures() override;
     int  set_shader(int mode) override;
     int  set_vsync(bool set) override;
     void update(void* buffer8) override;
@@ -29,6 +30,10 @@ private:
 
     SDL_Window* curr_window = NULL;
     SDL_Renderer* renderer = NULL;
+
+    bool ensure_framebuffer(int width, int height);
+    SDL_Texture* framebuffer_texture = nullptr;
+    SDL_Surface* framebuffer_surface = nullptr;
 
     SDL_Texture* ui_texture = NULL;
     SDL_Surface* ui_surface = NULL;

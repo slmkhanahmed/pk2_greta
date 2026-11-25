@@ -56,15 +56,19 @@ void PSdl::set_screen(PRender::FRECT screen_dst) {
 
 int PSdl::set_shader(int mode) {
 
-    if (mode == PRender::SHADER_NEAREST) {
-        if (SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0") == SDL_TRUE)
-            return 0;
-    } else if (mode == PRender::SHADER_LINEAR) {
-        if (SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "2") == SDL_TRUE)
-            return 0;
-    }
-    
-    return 1;
+    const bool nearest = mode == PRender::SHADER_NEAREST;
+    if (!nearest && mode != PRender::SHADER_LINEAR)
+        return 1;
+
+    if (!SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, nearest ? "0" : "2"))
+        return 1;
+
+    // Previously the next frame's newly created texture picked up this hint.
+    if (framebuffer_texture)
+        return SDL_SetTextureScaleMode(framebuffer_texture,
+            nearest ? SDL_ScaleModeNearest : SDL_ScaleModeBest) != 0;
+
+    return 0;
 }
 
 int PSdl::set_vsync(bool set) {
@@ -98,15 +102,52 @@ int PSdl::set_vsync(bool set) {
 
 }
 
+void PSdl::reset_textures() {
+
+    SDL_DestroyTexture(framebuffer_texture);
+    framebuffer_texture = nullptr;
+    SDL_DestroyTexture(ui_texture);
+    ui_texture = nullptr;
+
+}
+
+bool PSdl::ensure_framebuffer(int width, int height) {
+
+    if (!framebuffer_surface || framebuffer_surface->w != width || framebuffer_surface->h != height) {
+        SDL_DestroyTexture(framebuffer_texture);
+        framebuffer_texture = nullptr;
+        SDL_FreeSurface(framebuffer_surface);
+        framebuffer_surface = SDL_CreateRGBSurfaceWithFormat(
+            0, width, height, 32, SDL_PIXELFORMAT_ARGB8888);
+        if (!framebuffer_surface)
+            return false;
+    }
+
+    if (!framebuffer_texture)
+        framebuffer_texture = SDL_CreateTexture(renderer, framebuffer_surface->format->format,
+            SDL_TEXTUREACCESS_STREAMING, width, height);
+
+    return framebuffer_texture != nullptr;
+
+}
+
 void PSdl::update(void* _buffer8) {
 
-    SDL_Surface* buffer8 = (SDL_Surface*)_buffer8;
-    
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, buffer8);
+    auto* buffer8 = static_cast<SDL_Surface*>(_buffer8);
+
+    // Convert the indexed image with its current palette, including palette animation.
+    if (!ensure_framebuffer(buffer8->w, buffer8->h) ||
+        SDL_BlitSurface(buffer8, nullptr, framebuffer_surface, nullptr) != 0 ||
+        SDL_UpdateTexture(framebuffer_texture, nullptr, framebuffer_surface->pixels,
+            framebuffer_surface->pitch) != 0) {
+        PLog::Write(PLog::ERR, "PSdl", "Couldn't upload framebuffer: %s", SDL_GetError());
+        render_list.clear();
+        return;
+    }
 
     SDL_RenderClear(renderer);
 
-    SDL_RenderCopy(renderer, texture, NULL, &screen_dest);
+    SDL_RenderCopy(renderer, framebuffer_texture, nullptr, &screen_dest);
     
     int w, h;
     SDL_GetRendererOutputSize(renderer, &w, &h);
@@ -148,8 +189,6 @@ void PSdl::update(void* _buffer8) {
 
     SDL_RenderPresent(renderer);
 
-    SDL_DestroyTexture(texture);
-
 }
 
 PSdl::PSdl(int width, int height, void* window) {
@@ -170,6 +209,8 @@ PSdl::PSdl(int width, int height, void* window) {
 
 PSdl::~PSdl() {
 
+    reset_textures();
+    SDL_FreeSurface(framebuffer_surface);
     SDL_DestroyRenderer(renderer);
     SDL_FreeSurface(ui_surface);
     PLog::Write(PLog::DEBUG, "PSdl", "Terminated");

@@ -34,6 +34,7 @@ class Renderer {
 
 	virtual void clear_screen() = 0;
 	virtual void set_screen(FRECT screen_dst) = 0;
+	virtual void reset_textures() = 0;
 	virtual int  set_shader(int mode) = 0;
 	virtual int  set_vsync(bool set) = 0;
 	virtual void update(void* _buffer8) = 0;
@@ -82,6 +83,7 @@ bool is_vsync();
 
 void init(int width, int height, const char* name, const char* icon);
 void terminate();
+void reset_textures();
 void update(void* _buffer8);
 
 }

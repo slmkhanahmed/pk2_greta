@@ -64,6 +64,9 @@ static void logic() {
 		if(event.type == SDL_QUIT){
 			running = false;
 		}
+		else if(event.type == SDL_RENDER_DEVICE_RESET){
+			PRender::reset_textures();
+		}
 		else if(event.type == SDL_WINDOWEVENT){
 
 			if(event.window.event == SDL_WINDOWEVENT_RESIZED){

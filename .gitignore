@@ -3,6 +3,7 @@
 /doc/
 /pkg/
 
+/.runtime-test-data/
 /res/data/
 /res/editor/settings.dat
 /res/episodes/*/scores.dat
